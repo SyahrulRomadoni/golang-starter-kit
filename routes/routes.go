@@ -39,6 +39,10 @@ func SetupRoutes() *gin.Engine {
 		role := api.Group("/role")
 		{
 			role.GET("/", middleware.JWTAuth(), controllers.GetRoles)
+			role.GET("/:id", middleware.JWTAuth(), controllers.GetRoleByID)
+			role.POST("/", middleware.JWTAuth(), controllers.CreateRole)
+			role.PUT("/:id", middleware.JWTAuth(), controllers.UpdateRole)
+			role.DELETE("/:id", middleware.JWTAuth(), controllers.DeleteRole)
 		}
 	}
 

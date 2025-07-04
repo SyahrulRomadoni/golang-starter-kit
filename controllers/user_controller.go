@@ -150,7 +150,7 @@ func UpdateUser(c *gin.Context) {
 	}
 
 	// Hanya update field yang dikirim
-	if input.Name != nil {
+	if input.Name != nil && *input.Name != "" {
 		user.Name = *input.Name
 	}
 	if input.Email != nil && *input.Email != "" {
@@ -196,5 +196,5 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil dihapus (soft delete)", nil))
+	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil dihapus", nil))
 }
