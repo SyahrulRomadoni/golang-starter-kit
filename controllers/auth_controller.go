@@ -14,93 +14,63 @@ import (
 
 // RegisterInput adalah struktur data yang digunakan saat register
 type RegisterInput struct {
-	Name     string `json:"name" binding:"required"`     // Wajib diisi
-	Email    string `json:"email" binding:"required"`    // Wajib diisi
-	Password string `json:"password" binding:"required"` // Wajib diisi
-	IDRole   uint   `json:"id_role" binding:"required"`  // Wajib diisi (foreign key ke role)
+	Name     string `json:"name" binding:"required,min=3"`
+	Email    string `json:"email" binding:"required,email,min=6"`
+	Password string `json:"password" binding:"required,min=6"`
+	IDRole   uint   `json:"id_role" binding:"required"`
 }
 
 func Register(c *gin.Context) {
-	// Parsing dan validasi input JSON dari body request
+	var user models.User
 	var input RegisterInput
-	// if err := c.ShouldBindJSON(&input); err != nil {
-	// 	c.JSON(http.StatusBadRequest, utils.APIResponseError("Input tidak valid", err.Error()))
-	// 	return
-	// }
-	if err := c.ShouldBindJSON(&input); err != nil {
-		// Cek field mana yang kosong
-		if (input.Name == "" || input.Name == "null") &&
-			(input.Email == "" || input.Email == "null") &&
-			(input.Password == "" || input.Password == "null") &&
-			input.IDRole == 0 {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Semua field tidak boleh kosong", nil))
-			return
-		}
-		if input.Name == "" || input.Name == "null" {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Name tidak boleh kosong", nil))
-			return
-		}
-		if input.Email == "" || input.Email == "null" {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Email tidak boleh kosong", nil))
-			return
-		}
-		if input.Password == "" || input.Password == "null" {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Password tidak boleh kosong", nil))
-			return
-		}
-		if input.IDRole == 0 {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("ID Role tidak boleh kosong", nil))
-			return
-		}
+
+	// ------ Validasi ------ //
+	// Input Validation
+	ok, resp := utils.InputValidation(c, &input)
+	if !ok {
+		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
 
-	// Validasi karakter password hanya boleh a-z, A-Z, 0-9, @ _ - #
-	for _, cPass := range input.Password {
-		if !((cPass >= 'a' && cPass <= 'z') ||
-			(cPass >= 'A' && cPass <= 'Z') ||
-			(cPass >= '0' && cPass <= '9') ||
-			cPass == '@' || cPass == '_' || cPass == '-' || cPass == '#') {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Password hanya boleh mengandung huruf, angka, dan simbol ( @_-# )", nil))
-			return
-		}
+	// Validasi format password (hanya a-z, A-Z, 0-9, @, #, $)
+	if !utils.InputValidationPasswordCriteria(input.Password) {
+		c.JSON(http.StatusBadRequest, utils.APIResponseError(
+			"Password hanya boleh berisi huruf, angka, dan karakter @, #, $", nil))
+		return
 	}
 
-	// Cek apakah email sudah terdaftar di database
-	var existing models.User
-	if err := models.DB.Where("email = ?", input.Email).First(&existing).Error; err == nil {
-		// Jika email sudah ada, kirim response error
+	// Cek apakah email sudah terdaftar
+	if err := models.DB.Where("email = ?", input.Email).First(&user).Error; err == nil {
 		c.JSON(http.StatusBadRequest, utils.APIResponseError("Email sudah terdaftar", nil))
 		return
 	}
 
-	// Hash password sebelum disimpan ke database
-	hashed, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		// Jika hashing gagal, kirim response error
 		c.JSON(http.StatusInternalServerError, utils.APIResponseError("Gagal mengenkripsi password", nil))
 		return
 	}
+	// ------ END Validasi ------ //
 
 	// Buat object user baru dengan data dari input
-	user := models.User{
+	user = models.User{
 		Name:      input.Name,
 		Email:     input.Email,
-		Password:  string(hashed),
+		Password:  string(hashedPassword),
 		IDRole:    input.IDRole,
 		CreatedAt: time.Now(),
 	}
 
 	// Simpan user baru ke database
 	if err := models.DB.Create(&user).Error; err != nil {
-		// Jika gagal menyimpan, kirim response error
 		c.JSON(http.StatusInternalServerError, utils.APIResponseError("Gagal menyimpan data ke database", nil))
 		return
 	}
 
-		// Kirim response sukses dengan data user yang baru dibuat
-		c.JSON(http.StatusOK, utils.APIResponseSuccess("Registrasi berhasil", user))
-	}
+	// Kirim response sukses dengan data user yang baru dibuat
+	c.JSON(http.StatusOK, utils.APIResponseSuccess("Registrasi berhasil", user))
+}
 
 // LoginInput adalah struktur data yang digunakan saat login
 type LoginInput struct {

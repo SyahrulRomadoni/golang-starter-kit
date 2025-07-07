@@ -3,10 +3,10 @@ package controllers
 import (
 	"net/http"
 	"time"
-	"github.com/gin-gonic/gin"   // Framework web Gin
-	"golang.org/x/crypto/bcrypt" // Untuk hashing password
-	"golang-starter-kit/models"  // Model database
-	"golang-starter-kit/utils"   // Helper (response, jwt)
+	"github.com/gin-gonic/gin"   				// Framework web Gin
+	"golang.org/x/crypto/bcrypt" 				// Untuk hashing password
+	"golang-starter-kit/models"  				// Model database
+	"golang-starter-kit/utils"   				// Helper (response, jwt)
 )
 
 // GetUsers menampilkan semua user
@@ -26,61 +26,34 @@ func GetUsers(c *gin.Context) {
 }
 
 type CreateUserInput struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
+	Name     string `json:"name" binding:"required,min=3"`
+	Email    string `json:"email" binding:"required,email,min=6"`
 	Password string `json:"password" binding:"required,min=6"`
 	IDRole   int    `json:"id_role" binding:"required"`
 }
 
 // CreateUser membuat user baru
 func CreateUser(c *gin.Context) {
+	var user models.User
 	var input CreateUserInput
-	// if err := c.ShouldBindJSON(&input); err != nil {
-	// 	c.JSON(http.StatusBadRequest, utils.APIResponseError("Input tidak valid", err.Error()))
-	// 	return
-	// }
-	if err := c.ShouldBindJSON(&input); err != nil {
-		// Cek field mana yang kosong
-		if (input.Name == "" || input.Name == "null") &&
-			(input.Email == "" || input.Email == "null") &&
-			(input.Password == "" || input.Password == "null") &&
-			input.IDRole == 0 {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Semua field tidak boleh kosong", nil))
-			return
-		}
-		if input.Name == "" || input.Name == "null" {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Name tidak boleh kosong", nil))
-			return
-		}
-		if input.Email == "" || input.Email == "null" {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Email tidak boleh kosong", nil))
-			return
-		}
-		if input.Password == "" || input.Password == "null" {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Password tidak boleh kosong", nil))
-			return
-		}
-		if input.IDRole == 0 {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("ID Role tidak boleh kosong", nil))
-			return
-		}
+
+	// ------ Validasi ------ //
+	// Input Validation
+	ok, resp := utils.InputValidation(c, &input)
+	if !ok {
+		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
 
-	// Validasi karakter password hanya boleh a-z, A-Z, 0-9, @ _ - #
-	for _, cPass := range input.Password {
-		if !((cPass >= 'a' && cPass <= 'z') ||
-			(cPass >= 'A' && cPass <= 'Z') ||
-			(cPass >= '0' && cPass <= '9') ||
-			cPass == '@' || cPass == '_' || cPass == '-' || cPass == '#') {
-			c.JSON(http.StatusBadRequest, utils.APIResponseError("Password hanya boleh mengandung huruf, angka, dan simbol ( @_-# )", nil))
-			return
-		}
+	// Validasi format password (hanya a-z, A-Z, 0-9, @, #, $)
+	if !utils.InputValidationPasswordCriteria(input.Password) {
+		c.JSON(http.StatusBadRequest, utils.APIResponseError(
+			"Password hanya boleh berisi huruf, angka, dan karakter @, #, $", nil))
+		return
 	}
 
 	// Cek apakah email sudah terdaftar
-	var existing models.User
-	if err := models.DB.Where("email = ?", input.Email).First(&existing).Error; err == nil {
+	if err := models.DB.Where("email = ?", input.Email).First(&user).Error; err == nil {
 		c.JSON(http.StatusBadRequest, utils.APIResponseError("Email sudah terdaftar", nil))
 		return
 	}
@@ -91,8 +64,10 @@ func CreateUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, utils.APIResponseError("Gagal mengenkripsi password", nil))
 		return
 	}
+	// ------ END Validasi ------ //
 
-	user := models.User{
+	// Buat user baru
+	user = models.User{
 		Name:      input.Name,
 		Email:     input.Email,
 		Password:  string(hashedPassword),
@@ -108,7 +83,7 @@ func CreateUser(c *gin.Context) {
 	// Ambil user beserta role-nya
 	models.DB.Preload("Role").First(&user, user.ID)
 	user.Password = "" // jangan kirim password ke response
-	
+
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil dibuat", user))
 }
 
@@ -126,30 +101,54 @@ func GetUserByID(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("Detail user", user))
 }
 
+// Struct untuk input update user
 type UpdateUserInput struct {
-	Name     *string `json:"name"`
-	Email    *string `json:"email" binding:"omitempty,email"`
+	Name     *string `json:"name" binding:"omitempty,min=3"`
+	Email    *string `json:"email" binding:"omitempty,email,min=6"`
 	Password *string `json:"password" binding:"omitempty,min=6"`
 	IDRole   *int    `json:"id_role"`
 }
 
 // UpdateUser mengubah data user
 func UpdateUser(c *gin.Context) {
+	
 	id := c.Param("id")
 
 	var user models.User
+	var input UpdateUserInput
+	
+	// ------ Validasi Input JSON ------ //
+	// Validation Input
+	ok, resp := utils.InputValidation(c, &input)
+	if !ok {
+		c.JSON(http.StatusBadRequest, resp)
+		return
+	}
+
+	// Validasi format password (hanya a-z, A-Z, 0-9, @, #, $)
+	if !utils.InputValidationPasswordCriteria(*input.Password) {
+		c.JSON(http.StatusBadRequest, utils.APIResponseError(
+			"Password hanya boleh berisi huruf, angka, dan karakter @, #, $", nil))
+		return
+	}
+
+	// Cek apakah email sudah terdaftar
+	if input.Email != nil && *input.Email != "" {
+		var existing models.User
+		if err := models.DB.Where("email = ? AND id != ?", *input.Email, id).First(&existing).Error; err == nil {
+			c.JSON(http.StatusBadRequest, utils.APIResponseError("Email sudah terdaftar", nil))
+			return
+		}
+	}
+
+	// Check User
 	if err := models.DB.Where("deleted_at IS NULL").First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, utils.APIResponseError("User tidak ditemukan", nil))
 		return
 	}
+	// ------ END Validasi Input JSON ------ //
 
-	var input UpdateUserInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, utils.APIResponseError("Input tidak valid", err.Error()))
-		return
-	}
-
-	// Hanya update field yang dikirim
+	// Update data yang dikirim
 	if input.Name != nil && *input.Name != "" {
 		user.Name = *input.Name
 	}
@@ -157,6 +156,7 @@ func UpdateUser(c *gin.Context) {
 		user.Email = *input.Email
 	}
 	if input.Password != nil && *input.Password != "" {
+		// Hash password
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*input.Password), bcrypt.DefaultCost)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, utils.APIResponseError("Gagal mengenkripsi password", nil))
@@ -173,10 +173,10 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Ambil user beserta role-nya
+	// Preload Role dan hilangkan password dari output
 	models.DB.Preload("Role").First(&user, user.ID)
-	user.Password = "" // jangan kirim password ke response
-	
+	user.Password = ""
+
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil diupdate", user))
 }
 
