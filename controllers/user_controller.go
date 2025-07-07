@@ -3,25 +3,23 @@ package controllers
 import (
 	"net/http"
 	"time"
-	"github.com/gin-gonic/gin"   				// Framework web Gin
-	"golang.org/x/crypto/bcrypt" 				// Untuk hashing password
-	"golang-starter-kit/models"  				// Model database
-	"golang-starter-kit/utils"   				// Helper (response, jwt)
+	"github.com/gin-gonic/gin"   // Framework web Gin
+	"golang.org/x/crypto/bcrypt" // Untuk hashing password
+	"golang-starter-kit/models"  // Model database
+	"golang-starter-kit/utils"	 // Helper (response, jwt)
 )
 
 // GetUsers menampilkan semua user
 func GetUsers(c *gin.Context) {
 	var users []models.User
+
+	// Mengambil semua role yang belum dihapus (deleted_at IS NULL)
 	if err := models.DB.Where("deleted_at IS NULL").Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, utils.APIResponseError("Gagal mengambil data user", nil))
 		return
 	}
 
-	// Bersihkan password
-	for i := range users {
-		users[i].Password = ""
-	}
-
+	// Data berhasil di ambil
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("Daftar user", users))
 }
 
@@ -66,7 +64,7 @@ func CreateUser(c *gin.Context) {
 	}
 	// ------ END Validasi ------ //
 
-	// Buat user baru
+	// Buat object user baru dengan data dari input
 	user = models.User{
 		Name:      input.Name,
 		Email:     input.Email,
@@ -75,6 +73,7 @@ func CreateUser(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 
+	// Kondisi Create
 	if err := models.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, utils.APIResponseError("Gagal membuat user", nil))
 		return
@@ -83,6 +82,7 @@ func CreateUser(c *gin.Context) {
 	// Ambil user beserta role-nya
 	models.DB.Preload("Role").First(&user, user.ID)
 
+	// Response success
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil dibuat", user))
 }
 
@@ -91,16 +91,17 @@ func GetUserByID(c *gin.Context) {
 	id := c.Param("id")
 
 	var user models.User
+
+	// Kondisi data ada atau tidak
 	if err := models.DB.Where("deleted_at IS NULL").First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, utils.APIResponseError("User tidak ditemukan", nil))
 		return
 	}
 
-	user.Password = ""
+	// Data berhasil ditemukan
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("Detail user", user))
 }
 
-// Struct untuk input update user
 type UpdateUserInput struct {
 	Name     *string `json:"name" binding:"omitempty,min=3"`
 	Email    *string `json:"email" binding:"omitempty,email,min=6"`
@@ -147,7 +148,7 @@ func UpdateUser(c *gin.Context) {
 	}
 	// ------ END Validasi Input JSON ------ //
 
-	// Update data yang dikirim
+	// Buat object user baru dengan data dari input
 	if input.Name != nil && *input.Name != "" {
 		user.Name = *input.Name
 	}
@@ -167,6 +168,7 @@ func UpdateUser(c *gin.Context) {
 		user.IDRole = uint(*input.IDRole)
 	}
 
+	// Kondisi Save
 	if err := models.DB.Save(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, utils.APIResponseError("Gagal mengupdate user", nil))
 		return
@@ -175,6 +177,7 @@ func UpdateUser(c *gin.Context) {
 	// Ambil user beserta role-nya
 	models.DB.Preload("Role").First(&user, user.ID)
 
+	// Response success
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil diupdate", user))
 }
 
@@ -183,16 +186,22 @@ func DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 
 	var user models.User
+
+	// Check users
 	if err := models.DB.Where("deleted_at IS NULL").First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, utils.APIResponseError("User tidak ditemukan", nil))
 		return
 	}
 
+	// Field model
 	now := time.Now()
+
+	// Kondisi check update deleted_at
 	if err := models.DB.Model(&user).Update("deleted_at", &now).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, utils.APIResponseError("Gagal menghapus user", nil))
 		return
 	}
 
+	// Berhasil di delete
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil dihapus", nil))
 }

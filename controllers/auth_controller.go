@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 	"time"
-	"github.com/gin-gonic/gin"           // Framework web Gin
-	"github.com/golang-jwt/jwt/v5"       // JWT untuk autentikasi
-	"golang.org/x/crypto/bcrypt"         // Untuk hashing password
-	"golang-starter-kit/models"          // Model database
-	"golang-starter-kit/utils"           // Helper (response, jwt, blacklist)
+	"github.com/gin-gonic/gin"		// Framework web Gin
+	"github.com/golang-jwt/jwt/v5"	// JWT untuk autentikasi
+	"golang.org/x/crypto/bcrypt"  	// Untuk hashing password
+	"golang-starter-kit/models"   	// Model database
+	"golang-starter-kit/utils"    	// Helper (response, jwt, blacklist)
 )
 
 // RegisterInput adalah struktur data yang digunakan saat register
