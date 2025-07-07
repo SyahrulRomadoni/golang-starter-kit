@@ -10,7 +10,7 @@ import (
 const secretPassword = "secret123"
 
 // Middleware untuk validasi password dari inputan (query param: password)
-func validatePassword(c *gin.Context) bool {
+func validatePasswordSecret(c *gin.Context) bool {
 	var req struct {
 		Password string `json:"password"`
 	}
@@ -27,7 +27,7 @@ func validatePassword(c *gin.Context) bool {
 
 // Check Token black list
 func GetBlacklistTokens(c *gin.Context) {
-	if !validatePassword(c) {
+	if !validatePasswordSecret(c) {
 		return
 	}
 	blacklist := utils.GetBlacklistedTokens()
@@ -36,7 +36,7 @@ func GetBlacklistTokens(c *gin.Context) {
 
 // Clear Token black list
 func ClearBlacklistTokens(c *gin.Context) {
-	if !validatePassword(c) {
+	if !validatePasswordSecret(c) {
 		return
 	}
 	utils.ClearBlacklist()
