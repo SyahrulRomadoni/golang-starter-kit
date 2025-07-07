@@ -82,7 +82,6 @@ func CreateUser(c *gin.Context) {
 
 	// Ambil user beserta role-nya
 	models.DB.Preload("Role").First(&user, user.ID)
-	user.Password = "" // jangan kirim password ke response
 
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil dibuat", user))
 }
@@ -173,9 +172,8 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Preload Role dan hilangkan password dari output
+	// Ambil user beserta role-nya
 	models.DB.Preload("Role").First(&user, user.ID)
-	user.Password = ""
 
 	c.JSON(http.StatusOK, utils.APIResponseSuccess("User berhasil diupdate", user))
 }
